@@ -152,50 +152,55 @@ FROM TutorialAppSchema.Users AS Users -- Table alias
     JOIN TutorialAppSchema.UserSalary AS UserSalary
         ON UserSalary.UserId = Users.UserId
     -- LEFT JOIN - fills in NULL for values from "RIGHT" table in join where a match is not found
-    LEFT JOIN TutorialAppSchema.UserJobInfo
-        ON Users.UserId = UserJobInfo.UserId
+    LEFT JOIN TutorialAppSchema.UserJobInfo AS UserJobInfo
+        ON UserJobInfo.UserId = Users.UserId
     OUTER APPLY (
         -- CAN ACCESS INFO FROM OUTSIDE IN THIS QUERY
         -- Aliases can become ambigious (hence some renamed with 2)
-        SELECT ISNULL([UserJobInfo2].[Department], 'No Department Listed') AS Department,
-            AVG([UserSalary].[Salary]) AS AvgSalary
+        SELECT ISNULL(UserJobInfo2.Department, 'No Department Listed') AS Department
+                , AVG(UserSalary2.Salary) AS AvgSalary
             FROM TutorialAppSchema.UserSalary AS UserSalary2 -- Table alias
                 -- LEFT JOIN - fills in NULL for values from "RIGHT" table in join where a match is not found
                 LEFT JOIN TutorialAppSchema.UserJobInfo AS UserJobInfo2
                     ON UserJobInfo2.UserId = UserSalary2.UserId
                 WHERE UserJobInfo2.Department = UserJobInfo.Department
                 -- GROUP BY must be after WHERE and BEFORE ORDER BY
-                GROUP BY [UserJobInfo2].[Department]
+                GROUP BY UserJobInfo2.Department
     ) AS DepartmentAverage
 WHERE Users.Active = 1
-ORDER BY Users.UserId DESC
+ORDER BY Users.UserId DESC;
 
 
-SELECT  Users.UserId
-        , Users.FirstName + ' ' + Users.LastName AS FullName
-        , UserJobInfo.JobTitle
-        , UserJobInfo.Department
-        , DepartmentAverage.AvgSalary
-        , UserSalary.Salary
-        , Users.Email
-        , Users.Gender
-        , Users.Active
-  FROM  TutorialAppSchema.Users AS Users
-      --INNER JOIN
-      JOIN TutorialAppSchema.UserSalary AS UserSalary
-          ON UserSalary.UserId = Users.UserId
-      LEFT JOIN TutorialAppSchema.UserJobInfo AS UserJobInfo
-          ON UserJobInfo.UserId = Users.UserId
-    OUTER APPLY ( -- Similar to LEFT JOIN
-      -- CROSS APPLY ( -- Similar to JOIN
-                      -- SELECT TOP 1 
-                      SELECT    ISNULL (UserJobInfo2.Department, 'No Department Listed') AS Deparment
-                                , AVG (UserSalary2.Salary) AS AvgSalary
-                        FROM    TutorialAppSchema.UserSalary AS UserSalary2
-                            LEFT JOIN TutorialAppSchema.UserJobInfo AS UserJobInfo2
-                                ON UserJobInfo2.UserId = UserSalary2.UserId
-                       WHERE UserJobInfo2.Department = UserJobInfo.Department
-                       GROUP BY UserJobInfo2.Department
-                  ) AS DepartmentAverage
- WHERE  Users.Active = 1
- ORDER BY Users.UserId DESC;
+-- get time SQL server is in
+SELECT GETDATE()
+
+--  DATEADD(TYPE_OF_TIME, NUMBER_OF_TIME, DATE_TO_ADD_TO)
+SELECT DATEADD(MONTH, 2, GETDATE())
+
+-- get number of days between current date and date 2 years from now
+SELECT DATEDIFF(DAY, GETDATE(), DATEADD(YEAR, 2, GETDATE()))  -- returns positive
+SELECT DATEDIFF(DAY, GETDATE(), DATEADD(YEAR, -2, GETDATE())) -- returns negative
+
+-- add column to table
+ALTER TABLE TutorialAppSchema.UserSalary ADD AvgSalary DECIMAL(18,4)
+
+UPDATE UserSalary
+    SET UserSalary.AvgSalary = DepartmentAverage.AvgSalary
+FROM TutorialAppSchema.UserSalary AS UserSalary
+    LEFT JOIN TutorialAppSchema.UserJobInfo AS UserJobInfo
+        ON UserJobInfo.UserId = UserSalary.UserId
+    CROSS APPLY (
+        -- CAN ACCESS INFO FROM OUTSIDE IN THIS QUERY
+        -- Aliases can become ambigious (hence some renamed with 2)
+        SELECT ISNULL(UserJobInfo2.Department, 'No Department Listed') AS Department
+                , AVG(UserSalary2.Salary) AS AvgSalary
+            FROM TutorialAppSchema.UserSalary AS UserSalary2 -- Table alias
+                -- LEFT JOIN - fills in NULL for values from "RIGHT" table in join where a match is not found
+                LEFT JOIN TutorialAppSchema.UserJobInfo AS UserJobInfo2
+                    ON UserJobInfo2.UserId = UserSalary2.UserId
+                WHERE ISNULL(UserJobInfo2.Department, 'No Department Listed') = ISNULL(UserJobInfo.Department, 'No Department Listed')
+                -- GROUP BY must be after WHERE and BEFORE ORDER BY
+                GROUP BY UserJobInfo2.Department
+    ) AS DepartmentAverage
+
+SELECT * FROM TutorialAppSchema.UserSalary
